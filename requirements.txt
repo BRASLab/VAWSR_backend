@@ -1,0 +1,4 @@
+sanic==0.8.3
+sanic_session==0.4.1
+mongoenngine==0.15.3
+pytest-sanic

@@ -1,7 +1,11 @@
+# modules
+extractor_1024
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+.*un~
 
 # C extensions
 *.so
