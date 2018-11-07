@@ -2,6 +2,7 @@ import logging
 import sys
 
 from sanic import Sanic
+from sanic.websocket import WebSocketProtocol
 from sanic.response import json, text
 from sanic.exceptions import abort
 from sanic_session import Session, InMemorySessionInterface
@@ -109,28 +110,11 @@ async def registerspeaker(request):
     
     return json({'status': 'error'}, 403)
 
-@app.route('/sr', methods=['POST',])
-@login_required()
-async def sr(request):
-    try:
-        user = Users.objects.get(fbid=request['session']['fbid'])
-        if user.hasivector:
-            wav = BytesIO(request.files.get('file', None).body)
-            ivector = ivector_pipeline(wav, user.name)
-            clf = pickle.loads(user.ivector)
-            proba = clf.predict_proba([ivector])
-            label = clf.predict([ivector])[0]
-            LOG.info('{} label: {} proba: {}'.format(user.name, label, proba ))
-            if label and True in (proba >= 0.85):
-                expired = int(time()) + 30
-                request['session']['expired'] = expired
-                return json({ 'status': True, 'expired': expired })
-            else:
-                return json({ 'status': False })
-
-    except Exception as err:
-        LOG.error(err)
-        return json({'status': False })
+@app.websocket('/speech')
+async def speech(request, ws):
+    while True:
+        data = await ws.recv()
+        print('Received: ' + data)
 
 def create_app():
     app.run(host='0.0.0.0', port=8000)

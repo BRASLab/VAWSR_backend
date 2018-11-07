@@ -2,3 +2,5 @@ sanic==0.8.3
 sanic_session==0.4.1
 mongoenngine==0.15.3
 pytest-sanic
+autobahn==18.11.1
+txaio==18.8.1
