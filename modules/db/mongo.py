@@ -1,4 +1,4 @@
-from mongoengine import *
+from mongoengine import connect, StringField, IntField, EmailField, BooleanField, BinaryField, Document
 connect('vawsr')
 
 class Users(Document):

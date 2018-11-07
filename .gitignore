@@ -1,5 +1,7 @@
 # modules
 extractor_1024
+data.npy
+label.npy
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

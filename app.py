@@ -1,3 +1,6 @@
+import logging
+import sys
+
 from sanic import Sanic
 from sanic.response import json, text
 from sanic.exceptions import abort
@@ -6,10 +9,23 @@ from modules.db.mongo import Users
 from utils import login_required
 import requests
 from modules.ivector import ivector_pipeline
+from modules.svm import build_svm_clf
 from io import BytesIO
 
+from time import time
 from bson.binary import Binary
 import pickle
+
+LOG = logging.getLogger(__name__)
+
+LOG.setLevel(logging.INFO)
+
+sh = logging.StreamHandler(stream=sys.stdout)
+sh.setFormatter(logging.Formatter(
+    fmt="[%(asctime)s][%(levelname)s] %(name)s: %(message)s"
+    ))
+sh.setLevel(logging.INFO)
+LOG.addHandler(sh)
 
 app = Sanic()
 
@@ -19,8 +35,9 @@ allow_list = ["http://localhost:3000", "https://sean2525.github.io"]
 
 @app.middleware('response')
 async def prevent_xss(request, response):
-    if request.headers['origin'] in allow_list:
-        response.headers["Access-Control-Allow-Origin"] = request.headers['origin']
+    origin = request.headers.get('origin', None)
+    if origin in allow_list:
+        response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = 'true'
 
 @app.route('/')
@@ -80,12 +97,14 @@ async def registerspeaker(request):
         for x in request.files.values():
             b = BytesIO(x[0].body)
             ivectors.append(ivector_pipeline(b, user.name + ' ' + x[0].name))
-        user.ivector = Binary(pickle.dumps(ivectors, protocol=2))
+
+        clf = build_svm_clf(ivectors, user.fbid)
+        user.ivector = Binary(clf)
         user.hasivector = True
         user.save()
-        return json({'status': True})
+        return json({'status': True}, 403)
     except Exception as err:
-        print(err)
+        LOG.error(err)
         
     
     return json({'status': 'error'}, 403)
@@ -95,13 +114,23 @@ async def registerspeaker(request):
 async def sr(request):
     try:
         user = Users.objects.get(fbid=request['session']['fbid'])
-        wav = BytesIO(request.files.get('file', None).body)
-        ivector = ivector_pipeline(wav, user.name)
-        return json({'status': True})
+        if user.hasivector:
+            wav = BytesIO(request.files.get('file', None).body)
+            ivector = ivector_pipeline(wav, user.name)
+            clf = pickle.loads(user.ivector)
+            proba = clf.predict_proba([ivector])
+            label = clf.predict([ivector])[0]
+            LOG.info('{} label: {} proba: {}'.format(user.name, label, proba ))
+            if label and True in (proba >= 0.85):
+                expired = int(time()) + 30
+                request['session']['expired'] = expired
+                return json({ 'status': True, 'expired': expired })
+            else:
+                return json({ 'status': False })
+
     except Exception as err:
-        print(err)
-    
-    return json({'status': 'error'}, 403)
+        LOG.error(err)
+        return json({'status': False })
 
 def create_app():
     app.run(host='0.0.0.0', port=8000)
