@@ -6,8 +6,8 @@ from sklearn.pipeline import Pipeline
 import numpy as np
 import pickle
 
-X_sample = np.load('modules/svm/data.npy')
-y_sample = np.load('modules/svm/label.npy')
+X_sample = np.load('app/modules/svm/data.npy')
+y_sample = np.load('app/modules/svm/label.npy')
 
 def build_svm_clf(ivectors, fbid):
     pipe_svm = Pipeline([('sc', StandardScaler()),

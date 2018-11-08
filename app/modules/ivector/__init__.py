@@ -20,15 +20,6 @@ from kaldi.util.io import xopen
 
 LOG = logging.getLogger(__name__)
 
-LOG.setLevel(logging.INFO)
-
-sh = logging.StreamHandler(stream=sys.stdout)
-sh.setFormatter(logging.Formatter(
-    fmt="[%(asctime)s][%(levelname)s] %(name)s: %(message)s"
-    ))
-sh.setLevel(logging.INFO)
-LOG.addHandler(sh)
-
 def kaldi_Matrix(mat):
     _mat = Matrix(mat.num_rows, mat.num_cols)
     _mat.add_mat_(1, mat)
@@ -91,20 +82,20 @@ feat_pipeline = make_feat_pipeline(mfcc, sliding_opts,vad_opts, delta_opts)
 
 try:
     LOG.info('Loading ubm...')
-    if not os.path.exists('extractor_1024/final.ubm'):
+    if not os.path.exists('app/extractor/final.ubm'):
         LOG.error('Not Found extractor/final.ubm, please recheck file')
         exit(1)
-    with xopen('extractor_1024/final.ubm') as ki:
+    with xopen('app/extractor/final.ubm') as ki:
         fgmm = FullGmm()
         fgmm.read(ki.stream(), ki.binary)
         gmm = DiagGmm()
         gmm.copy_from_full(fgmm)
 
-    if not os.path.exists('extractor_1024/final.ie'):
-        LOG.error('Not Found extractor/final.ie, please recheck file')
+    if not os.path.exists('app/extractor/final.ie'):
+        LOG.error('Not Found app/extractor/final.ie, please recheck file')
         exit(1)
 
-    with xopen('extractor_1024/final.ie') as ki:
+    with xopen('app/extractor/final.ie') as ki:
         extractor_ = IvectorExtractor()
         extractor_.read(ki.stream(), ki.binary)
         LOG.info('IvectorExtractor ready')
