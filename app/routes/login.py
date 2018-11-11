@@ -49,6 +49,7 @@ async def login(request):
 
 
 @app.route('/logout')
+@login_required()
 async def logout(request):
     del request['session']['fbid']
     return json({'success': True})

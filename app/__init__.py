@@ -2,23 +2,31 @@ import logging
 import sys
 
 from sanic import Sanic
-from app.conf.config import port
 from sanic_session import Session, InMemorySessionInterface
+import socketio
+
+from app.conf.config import port, debug
 
 
 LOG = logging.getLogger(__package__)
-LOG.setLevel(logging.INFO)
+
+level = logging.DEBUG if debug else logging.INFO
+
+LOG.setLevel(level)
 
 sh = logging.StreamHandler(stream=sys.stdout)
 sh.setFormatter(logging.Formatter(
     fmt="[%(asctime)-15s][%(levelname)s] %(name)s: %(message)s"
     ))
 
-sh.setLevel(logging.INFO)
+sh.setLevel(level)
 
 LOG.addHandler(sh)
 
+sio = socketio.AsyncServer(async_mode='sanic')
 app = Sanic(__package__)
+sio.attach(app)
+
 session = Session(app, interface=InMemorySessionInterface())
 
 def create_app():

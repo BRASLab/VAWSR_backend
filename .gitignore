@@ -1,3 +1,5 @@
+# config
+google.json
 # modules
 extractor
 data.npy
