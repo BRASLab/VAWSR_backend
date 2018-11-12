@@ -61,13 +61,26 @@ class SpeechWebsocket(socketio.AsyncNamespace):
 
         self.streamer[sid]['stream'] = stream
         self.streamer[sid]['buff'] = buff
+        LOG.info('{} start stream'.format(sid))
 
     async def on_stop_stream(self, sid, data):
-        if self.streamer[sid].get('responses'):
+        LOG.info('{} stop stream'.format(sid))
+        if self.streamer[sid].get('stream'):
             self.streamer[sid]['stream'].end()
-            self.streamer[sid]['responses'].cancel()
             del self.streamer[sid]['stream']
+
+        if self.streamer[sid].get('responses'):
+            self.streamer[sid]['responses'].cancel()
             del self.streamer[sid]['responses']
+
+            data = {
+                    'proba': 0.8,
+                    'result': ''
+                    }
+            await self.emit('stop_stream', data, room=sid)
+            return
+
+        await self.emit('stop_stream', { 'proba': 0, 'result': '' }, room=sid)
 
     @sanic_auth
     async def on_binary_data(self, sid, data):
@@ -79,7 +92,8 @@ class SpeechWebsocket(socketio.AsyncNamespace):
             responses = self.google.start_recognition_stream(stream.generator())
             self.streamer[sid]['responses'] = responses
             loop = thread_new_event_loop()
-            asyncio.ensure_future(self.handle_google_response(sid, responses), loop=loop)
+            asyncio.run_coroutine_threadsafe(self.handle_google_response(sid, responses), loop=loop)
+            LOG.info('{} start google recognition'.format(sid))
 
         self.streamer[sid]['stream'].write(data)
         self.streamer[sid]['buff'].put(data)
@@ -88,10 +102,12 @@ class SpeechWebsocket(socketio.AsyncNamespace):
     async def handle_google_response(self, sid, responses):
         try:
             for res in responses:
+
                 if not res.results:
                     continue
 
                 result = res.results[0]
+
                 if not result.alternatives:
                     continue
 
