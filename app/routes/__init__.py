@@ -1,1 +1,5 @@
-from app.routes import default, login, speech, sentences
+from app.routes import \
+        default, \
+        login, \
+        speech, \
+        sentences

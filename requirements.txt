@@ -4,3 +4,4 @@ mongoenngine==0.15.3
 pytest-sanic
 socketio-0.1.4
 python-socketio=2.0.0
+google-cloud-speech

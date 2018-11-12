@@ -8,5 +8,5 @@ from sanic.response import json
 @app.route('/sentences.json')
 @login_required()
 async def sentences(request):
-    res = requests.get('http://more.handlino.com/sentences.json?n=3')
+    res = requests.get('http://more.handlino.com/sentences.json?n=10')
     return json(res.json())

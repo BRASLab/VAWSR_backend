@@ -1,5 +1,4 @@
 import app.routes
-import app.sockets
 from app import create_app
 
 

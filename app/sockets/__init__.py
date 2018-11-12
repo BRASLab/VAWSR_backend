@@ -1,1 +1,1 @@
-from app.sockets import speech
+from app.sockets.speech import SpeechWebsocket, namespace

@@ -1,16 +1,20 @@
-
 import re
 import sys
+import logging
 
 from google.cloud import speech
 from google.cloud.speech import enums
 from google.cloud.speech import types
 from six.moves import queue
 
+LOG = logging.getLogger()
+LOG.removeHandler(LOG.handlers[0])
 
 class GoogleStreamer:
     def __init__(self, rate=16000,lang='zh-TW'):
         self.client = speech.SpeechClient()
+        LOG = logging.getLogger()
+        LOG.removeHandler(LOG.handlers[0])
 
         config = types.RecognitionConfig(
                 encoding=enums.RecognitionConfig.AudioEncoding.LINEAR16,
