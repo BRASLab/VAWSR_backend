@@ -1,6 +1,7 @@
 import logging
 import asyncio
 
+from app import sio
 from app.modules.db.mongo import Users
 from app.modules.streamer import GoogleStreamer, WebsocketStream
 from app.utils import thread_new_event_loop
@@ -24,7 +25,7 @@ class SpeechWebsocket(socketio.AsyncNamespace):
         @wraps(func)
         async def wrapper(self, sid, data):
             if not self.streamer[sid]['auth']:
-                await self.disconnect(sid)
+                return await self.disconnect(sid)
             else:
                 return await func(self, sid, data)
 
@@ -50,9 +51,6 @@ class SpeechWebsocket(socketio.AsyncNamespace):
         del self.streamer[sid]
         LOG.info('client disconnect')
 
-    @sanic_auth
-    async def on_message(self, sid, data):
-        await self.emit('message', data, room=sid)
 
     @sanic_auth
     async def on_start_stream(self, sid, data):
@@ -117,7 +115,9 @@ class SpeechWebsocket(socketio.AsyncNamespace):
                 if result.is_final:
                     data['is_final'] = True
 
+                print(data)
                 await self.emit('google_speech_data', data, room=sid)
         except Exception as err:
             LOG.debug(err)
 
+sio.register_namespace(SpeechWebsocket(namespace))

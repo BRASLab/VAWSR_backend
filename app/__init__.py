@@ -6,7 +6,6 @@ from sanic_session import Session, InMemorySessionInterface
 import socketio
 
 from app.conf.config import port, debug
-from app.sockets import SpeechWebsocket, namespace 
 
 
 LOG = logging.getLogger(__package__)
@@ -30,7 +29,6 @@ app = Sanic(__package__)
 session = Session(app, interface=InMemorySessionInterface())
 
 sio.attach(app)
-sio.register_namespace(SpeechWebsocket(namespace))
 
 
 def create_app():
