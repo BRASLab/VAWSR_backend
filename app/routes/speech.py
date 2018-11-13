@@ -1,6 +1,8 @@
 import logging
 
 from bson.binary import Binary
+from sanic.response import json
+from io import BytesIO
 import pickle
 
 from app import app
@@ -27,7 +29,7 @@ async def registerspeaker(request):
         user.ivector = Binary(clf)
         user.hasivector = True
         user.save()
-        return json({'status': True}, 403)
+        return json({'status': True})
     except Exception as err:
         LOG.error(err)
         

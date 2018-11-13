@@ -115,7 +115,7 @@ class SpeechWebsocket(socketio.AsyncNamespace):
                 if result.is_final:
                     data['is_final'] = True
 
-                print(data)
+                LOG.debug(data)
                 await self.emit('google_speech_data', data, room=sid)
         except Exception as err:
             LOG.debug(err)
