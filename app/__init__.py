@@ -32,4 +32,4 @@ sio.attach(app)
 
 
 def create_app():
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    app.run(host='0.0.0.0', port=port)
