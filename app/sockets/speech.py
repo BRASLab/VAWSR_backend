@@ -1,13 +1,14 @@
 import logging
-import asyncio
 
 from app import sio
 from app.modules.db.mongo import Users
 from app.modules.streamer import GoogleStreamer, WebsocketStream
-from app.utils import thread_new_event_loop
+from app.modules.ivector import ivector_pipeline
+from app.utils import thread_run_until_complete, byte2wav
 
-from six.moves import queue
+from io import BytesIO
 from functools import wraps
+import pickle
 import socketio
 
 
@@ -38,7 +39,8 @@ class SpeechWebsocket(socketio.AsyncNamespace):
             if not user or not user.hasivector:
                 raise ValueError('user.hasivector must be true')
 
-            self.streamer[sid] = {'auth': True}
+            clf = pickle.loads(user.ivector)
+            self.streamer[sid] = {'auth': True, 'clf': clf }
 
             LOG.info('User: {} connected to server'.format(user.name))
         
@@ -55,7 +57,7 @@ class SpeechWebsocket(socketio.AsyncNamespace):
     @sanic_auth
     async def on_start_stream(self, sid, data):
         stream = WebsocketStream()
-        buff = queue.Queue()
+        buff = BytesIO()
 
         self.streamer[sid]['stream'] = stream
         self.streamer[sid]['buff'] = buff
@@ -68,12 +70,24 @@ class SpeechWebsocket(socketio.AsyncNamespace):
             del self.streamer[sid]['stream']
 
         if self.streamer[sid].get('responses'):
-            self.streamer[sid]['responses'].cancel()
+            #self.streamer[sid]['responses'].cancel()
             del self.streamer[sid]['responses']
+            proba = 0
+            if self.streamer[sid].get('clf'):
+                try:
+                    wav = byte2wav(self.streamer[sid]['buff'])
+                    del self.streamer[sid]['buff']
+                    ivector = ivector_pipeline(wav , sid)
+                    proba = self.streamer[sid]['clf'].predict_proba(ivector.reshape(1, -1))[0][0]
+                    print(proba)
+                    LOG.info(self.streamer[sid]['clf'].predict(ivector.reshape(1, -1)))
+                except Exception as err:
+                    raise err
+                    LOG.error(err)
 
             data = {
-                    'proba': 0.8,
-                    'result': ''
+                    'proba': proba,
+                    'result': 'test'
                     }
             await self.emit('stop_stream', data, room=sid)
             return
@@ -87,14 +101,14 @@ class SpeechWebsocket(socketio.AsyncNamespace):
 
         if not self.streamer[sid].get('responses'):
             stream = self.streamer[sid]['stream']
-            responses = self.google.start_recognition_stream(stream.generator())
+            responses = {'test'}
+            #responses = self.google.start_recognition_stream(stream.generator())
             self.streamer[sid]['responses'] = responses
-            loop = thread_new_event_loop()
-            asyncio.run_coroutine_threadsafe(self.handle_google_response(sid, responses), loop=loop)
-            LOG.info('{} start google recognition'.format(sid))
+            #thread_run_until_complete(self.handle_google_response(sid, responses))
+            #LOG.info('{} start google recognition'.format(sid))
 
         self.streamer[sid]['stream'].write(data)
-        self.streamer[sid]['buff'].put(data)
+        self.streamer[sid]['buff'].write(data)
         
 
     async def handle_google_response(self, sid, responses):

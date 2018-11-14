@@ -8,6 +8,9 @@ class WebsocketStream(object):
     def end(self):
         self.closed = True
 
+    def cancel(self):
+        self.closed = True
+
     def write(self, in_data):
         self._buff.put(in_data)
 
