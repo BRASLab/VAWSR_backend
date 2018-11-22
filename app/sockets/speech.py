@@ -3,7 +3,7 @@ import requests
 
 from app import sio
 from app.modules.db.mongo import Users
-from app.modules.streamer import GoogleStreamer, WebsocketStream
+from app.modules.streamer import GoogleStreamer, KaldiStreamer, WebsocketStream
 from app.modules.ivector import ivector_pipeline
 from app.utils import thread_run_until_complete, byte2wav
 
@@ -22,6 +22,7 @@ class SpeechWebsocket(socketio.AsyncNamespace):
         super().__init__(*args, **kwargs)
         self.streamer = {}
         self.google = GoogleStreamer(rate=44100)
+        self.kaldi = KaldiStreamer(rate=44100)
 
     def sanic_auth(func):
         @wraps(func)
@@ -57,22 +58,28 @@ class SpeechWebsocket(socketio.AsyncNamespace):
 
     @sanic_auth
     async def on_start_stream(self, sid, data):
-        stream = WebsocketStream()
+        g_stream = WebsocketStream()
+        k_stream = WebsocketStream()
         buff = BytesIO()
 
-        self.streamer[sid]['stream'] = stream
+        self.streamer[sid]['g_stream'] = g_stream
+        self.streamer[sid]['k_stream'] = k_stream
         self.streamer[sid]['buff'] = buff
         LOG.info('{} start stream'.format(sid))
 
     async def on_stop_stream(self, sid, data):
         LOG.info('{} stop stream'.format(sid))
-        if self.streamer[sid].get('stream'):
-            self.streamer[sid]['stream'].end()
-            del self.streamer[sid]['stream']
+        if self.streamer[sid].get('g_stream'):
+            self.streamer[sid]['g_stream'].end()
+            self.streamer[sid]['k_stream'].end()
+            del self.streamer[sid]['g_stream']
+            del self.streamer[sid]['k_stream']
 
-        if self.streamer[sid].get('responses'):
-            self.streamer[sid]['responses'].cancel()
-            del self.streamer[sid]['responses']
+        if self.streamer[sid].get('g_responses'):
+            self.streamer[sid]['g_responses'].cancel()
+            self.streamer[sid]['k_responses'].cancel()
+            del self.streamer[sid]['g_responses']
+            del self.streamer[sid]['k_responses']
             proba = 0
             result = {
                     'text': '',
@@ -107,17 +114,22 @@ class SpeechWebsocket(socketio.AsyncNamespace):
 
     @sanic_auth
     async def on_binary_data(self, sid, data):
-        if not self.streamer[sid].get('stream'):
+        if not self.streamer[sid].get('g_stream'):
             await self.on_start_stream(sid, data)
 
-        if not self.streamer[sid].get('responses'):
-            stream = self.streamer[sid]['stream']
-            responses = self.google.start_recognition_stream(stream.generator())
-            self.streamer[sid]['responses'] = responses
-            thread_run_until_complete(self.handle_google_response(sid, responses))
-            LOG.info('{} start google recognition'.format(sid))
+        if not self.streamer[sid].get('g_responses'):
+            g_stream = self.streamer[sid]['g_stream']
+            k_stream = self.streamer[sid]['k_stream']
+            g_responses = self.google.start_recognition_stream(g_stream.generator())
+            k_responses = self.kaldi.create_streamer(sid, k_stream.generator())
+            self.streamer[sid]['g_responses'] = g_responses
+            self.streamer[sid]['k_responses'] = k_responses
+            thread_run_until_complete(self.handle_google_response(sid, g_responses))
+            thread_run_until_complete(self.handle_kaldi_response(sid, k_responses.generator()))
+            LOG.info('{} start recognition'.format(sid))
 
-        self.streamer[sid]['stream'].write(data)
+        self.streamer[sid]['g_stream'].write(data)
+        self.streamer[sid]['k_stream'].write(data)
         self.streamer[sid]['buff'].write(data)
         
 
@@ -143,5 +155,16 @@ class SpeechWebsocket(socketio.AsyncNamespace):
                 await self.emit('google_speech_data', data, room=sid)
         except Exception as err:
             LOG.debug(err)
+    
+    async def handle_kaldi_response(self, sid, responses):
+        try:
+            for res in responses:
+                if res is not None:
+                    LOG.debug(res)
+                    data = {'transcript': res }
+                    await self.emit('kaldi_speech_data', data, room=sid)
+        except Exception as err:
+            LOG.debug(err)
+        
 
 sio.register_namespace(SpeechWebsocket(namespace))

@@ -5,3 +5,4 @@ pytest-sanic
 socketio-0.1.4
 python-socketio=2.0.0
 google-cloud-speech
+websocket-client-0.54.0
