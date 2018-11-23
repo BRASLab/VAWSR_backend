@@ -55,7 +55,6 @@ class SpeechWebsocket(socketio.AsyncNamespace):
         del self.streamer[sid]
         LOG.info('client disconnect')
 
-
     @sanic_auth
     async def on_start_stream(self, sid, data):
         g_stream = WebsocketStream()
@@ -69,20 +68,26 @@ class SpeechWebsocket(socketio.AsyncNamespace):
 
     async def on_stop_stream(self, sid, data):
         LOG.info('{} stop stream'.format(sid))
-        if self.streamer[sid].get('g_stream'):
+        if self.streamer[sid].get('g_stream') and self.streamer[sid].get('k_stream'):
             self.streamer[sid]['g_stream'].end()
             self.streamer[sid]['k_stream'].end()
             del self.streamer[sid]['g_stream']
             del self.streamer[sid]['k_stream']
 
-        if self.streamer[sid].get('g_responses'):
+        if self.streamer[sid].get('g_responses') and self.streamer[sid].get('k_responses'):
             self.streamer[sid]['g_responses'].cancel()
             self.streamer[sid]['k_responses'].cancel()
             del self.streamer[sid]['g_responses']
             del self.streamer[sid]['k_responses']
+
+            google = self.streamer[sid]['google']
+            kaldi = self.streamer[sid]['kaldi']
+            del self.streamer[sid]['kaldi']
+            del self.streamer[sid]['google']
+
             proba = 0
             result = {
-                    'text': '',
+                    'text': 'Can not pass',
                     'url': ''
                     }
 
@@ -90,27 +95,27 @@ class SpeechWebsocket(socketio.AsyncNamespace):
                 try:
                     wav = byte2wav(self.streamer[sid]['buff'], 44100)
                     del self.streamer[sid]['buff']
+                    # How to make this in thread
                     ivector = ivector_pipeline(wav , sid)
                     clf = self.streamer[sid]['clf']
                     if clf.predict(ivector.reshape(1, -1))[0]:
-                        result = requests.get('http://140.125.45.147:8080/get?speech={}'.format(self.streamer[sid]['google'])).json()
+                        result = requests.get('http://140.125.45.147:8080/get?speech={}'.format(google)).json()
 
                     proba = clf.predict_proba(ivector.reshape(1, -1))
                     LOG.debug(proba)
                     proba = proba[0][1]
 
                 except Exception as err:
-                    LOG.error(err)
+                    LOG.debug(err)
 
             data = {
+                    'google': google,
+                    'kaldi': kaldi,
                     'proba': proba,
                     'result': result
                     }
 
             await self.emit('stop_stream', data, room=sid)
-            return
-
-        await self.emit('stop_stream', { 'proba': 0, 'result': '' }, room=sid)
 
     @sanic_auth
     async def on_binary_data(self, sid, data):
@@ -160,8 +165,9 @@ class SpeechWebsocket(socketio.AsyncNamespace):
         try:
             for res in responses:
                 if res is not None:
-                    LOG.debug(res)
                     data = {'transcript': res }
+                    self.streamer[sid]['kaldi'] = res
+                    LOG.debug(res)
                     await self.emit('kaldi_speech_data', data, room=sid)
         except Exception as err:
             LOG.debug(err)

@@ -59,12 +59,12 @@ class KaldiStreamer:
         else:
             LOG.error("Received error from server (status {})".format(response['status']))
             if 'message' in response:
-                LOG.error("Error message:", response['message'])
+                LOG.debug("Error message:", response['message'])
 
     @staticmethod
     def on_error(ws, error):
         LOG.error('{} kaldi websocket error'.format(ws.sid))
-        LOG.error(error)
+        LOG.debug(error)
 
     @staticmethod
     def on_close(ws):
