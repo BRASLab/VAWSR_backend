@@ -10,7 +10,6 @@ def byte2wav(b: BytesIO, rate = 16000, channel = 1):
     chunk_descriptor =  b'RIFF' + chunk_size + b'WAVE'
     channel = struct.pack('<H', channel)
     # detail: http://soundfile.sapp.org/doc/WaveFormat
-    # channel:1 samplerate:16000
     fmt_subchunk = bytes.fromhex('666d7420100000000100')
     fmt_subchunk += channel
     fmt_subchunk += sample_rate

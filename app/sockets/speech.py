@@ -41,7 +41,7 @@ class SpeechWebsocket(socketio.AsyncNamespace):
             if not user or not user.hasivector:
                 raise ValueError('user.hasivector must be true')
 
-            clf = pickle.loads(user.ivector)
+            clf = pickle.loads(user.clf)
             self.streamer[sid] = {'auth': True, 'clf': clf }
 
             LOG.info('User: {} connected to server'.format(user.name))
@@ -75,32 +75,38 @@ class SpeechWebsocket(socketio.AsyncNamespace):
             del self.streamer[sid]['k_stream']
 
         if self.streamer[sid].get('g_responses') and self.streamer[sid].get('k_responses'):
-            self.streamer[sid]['g_responses'].cancel()
+            #self.streamer[sid]['g_responses'].cancel()
             self.streamer[sid]['k_responses'].cancel()
             del self.streamer[sid]['g_responses']
             del self.streamer[sid]['k_responses']
 
-            google = self.streamer[sid]['google']
-            kaldi = self.streamer[sid]['kaldi']
-            del self.streamer[sid]['kaldi']
-            del self.streamer[sid]['google']
+            try:
+                #google = self.streamer[sid]['google']
+                kaldi = self.streamer[sid]['kaldi']
+                del self.streamer[sid]['kaldi']
+                #del self.streamer[sid]['google']
+            except Exception as err:
+                LOG.debug(err)
+                LOG.info('{} has no speechData'.format(sid))
+                del self.streamer[sid]['buff']
+                return
 
             proba = 0
             result = {
-                    'text': 'Can not pass',
+                    'text': 'Not authorized',
                     'url': ''
                     }
 
             if self.streamer[sid].get('clf'):
                 try:
                     wav = byte2wav(self.streamer[sid]['buff'], 44100)
+                    with open('test.wav', 'wb') as f:
+                        f.write(wav.getvalue())
+
                     del self.streamer[sid]['buff']
-                    # How to make this in thread
                     ivector = ivector_pipeline(wav , sid)
                     clf = self.streamer[sid]['clf']
-                    if clf.predict(ivector.reshape(1, -1))[0]:
-                        result = requests.get('http://140.125.45.147:8080/get?speech={}'.format(google)).json()
-
+                    #result = requests.get('http://140.125.45.147:8080/get?speech={}'.format(google)).json()
                     proba = clf.predict_proba(ivector.reshape(1, -1))
                     LOG.debug(proba)
                     proba = proba[0][1]
@@ -109,7 +115,7 @@ class SpeechWebsocket(socketio.AsyncNamespace):
                     LOG.debug(err)
 
             data = {
-                    'google': google,
+                    'google': '', #google,
                     'kaldi': kaldi,
                     'proba': proba,
                     'result': result
@@ -121,15 +127,13 @@ class SpeechWebsocket(socketio.AsyncNamespace):
     async def on_binary_data(self, sid, data):
         if not self.streamer[sid].get('g_stream'):
             await self.on_start_stream(sid, data)
-
-        if not self.streamer[sid].get('g_responses'):
             g_stream = self.streamer[sid]['g_stream']
             k_stream = self.streamer[sid]['k_stream']
-            g_responses = self.google.start_recognition_stream(g_stream.generator())
+            #g_responses = self.google.start_recognition_stream(g_stream.generator())
             k_responses = self.kaldi.create_streamer(sid, k_stream.generator())
-            self.streamer[sid]['g_responses'] = g_responses
+            self.streamer[sid]['g_responses'] = '123' #g_responses
             self.streamer[sid]['k_responses'] = k_responses
-            thread_run_until_complete(self.handle_google_response(sid, g_responses))
+            #thread_run_until_complete(self.handle_google_response(sid, g_responses))
             thread_run_until_complete(self.handle_kaldi_response(sid, k_responses.generator()))
             LOG.info('{} start recognition'.format(sid))
 
@@ -172,5 +176,4 @@ class SpeechWebsocket(socketio.AsyncNamespace):
         except Exception as err:
             LOG.debug(err)
         
-
 sio.register_namespace(SpeechWebsocket(namespace))

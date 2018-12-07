@@ -8,4 +8,6 @@ class Users(Document):
     token = StringField(required=True)
     signed = StringField(required=True)
     hasivector = BooleanField(default=False)
-    ivector = BinaryField()
+    processing = BooleanField(default=False)
+    clf = BinaryField()
+    ivectors = BinaryField()

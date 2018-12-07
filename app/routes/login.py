@@ -18,7 +18,7 @@ async def auth(request):
     else:
         return json({'status': 'not_authorized'}, 401)
 
-    return json({'name':user.name, 'fbid':user.fbid, 'email': user.email , 'hasivector': user.hasivector })
+    return json({'name':user.name, 'fbid':user.fbid, 'email': user.email , 'hasivector': user.hasivector, 'processing': user.processing })
 
 
 @app.route('/login', methods=['POST', ])
@@ -45,7 +45,7 @@ async def login(request):
     user.save()
     request['session']['fbid'] = user.fbid
 
-    return json({'name':user.name, 'fbid':user.fbid, 'email': user.email, 'hasivector':user.hasivector })
+    return json({'name':user.name, 'fbid':user.fbid, 'email': user.email, 'hasivector':user.hasivector, 'processing': user.processing })
 
 
 @app.route('/logout')
