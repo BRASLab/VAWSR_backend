@@ -98,12 +98,15 @@ class SpeechWebsocket(socketio.AsyncNamespace):
                 del self.streamer[sid]['k_responses']
                 kaldi = self.streamer[sid].get('kaldi', '')
                 if kaldi:
-                    del self.streamer[sid]['kaldi']
-                else:
                     LOG.info('kaldi {} has no speechData'.format(sid))
-                    del self.streamer[sid]['buff']
+                    del self.streamer[sid]['kaldi']
+
+            if not google and not kaldi:
+                del self.streamer[sid]['buff']
+                return
 
             clf = self.streamer[sid].get('clf')
+
             if clf:
                 try:
                     wav = byte2wav(self.streamer[sid]['buff'], 44100)
