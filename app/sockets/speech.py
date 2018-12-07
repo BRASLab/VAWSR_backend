@@ -6,6 +6,7 @@ from app.modules.db.mongo import Users
 from app.modules.streamer import GoogleStreamer, KaldiStreamer, WebsocketStream
 from app.modules.ivector import ivector_pipeline
 from app.utils import thread_run_until_complete, byte2wav
+from app.conf.config import google_disable, kaldi_disable, debug
 
 from io import BytesIO
 from functools import wraps
@@ -74,48 +75,56 @@ class SpeechWebsocket(socketio.AsyncNamespace):
             del self.streamer[sid]['g_stream']
             del self.streamer[sid]['k_stream']
 
-        if self.streamer[sid].get('g_responses') and self.streamer[sid].get('k_responses'):
-            #self.streamer[sid]['g_responses'].cancel()
-            self.streamer[sid]['k_responses'].cancel()
-            del self.streamer[sid]['g_responses']
-            del self.streamer[sid]['k_responses']
-
-            try:
-                #google = self.streamer[sid]['google']
-                kaldi = self.streamer[sid]['kaldi']
-                del self.streamer[sid]['kaldi']
-                #del self.streamer[sid]['google']
-            except Exception as err:
-                LOG.debug(err)
-                LOG.info('{} has no speechData'.format(sid))
-                del self.streamer[sid]['buff']
-                return
-
+        if self.streamer[sid].get('g_responses') or self.streamer[sid].get('k_responses'):
+            google = ''
+            kaldi = ''
             proba = 0
             result = {
                     'text': 'Not authorized',
                     'url': ''
                     }
 
-            if self.streamer[sid].get('clf'):
+            if not google_disable:
+                self.streamer[sid]['g_responses'].cancel()
+                del self.streamer[sid]['g_responses']
+                google = self.streamer[sid].get('google', '')
+                if google:
+                    LOG.info('google {} has no speechData'.format(sid))
+                    del self.streamer[sid]['google']
+
+
+            if not kaldi_disable:
+                self.streamer[sid]['k_responses'].cancel()
+                del self.streamer[sid]['k_responses']
+                kaldi = self.streamer[sid].get('kaldi', '')
+                if kaldi:
+                    del self.streamer[sid]['kaldi']
+                else:
+                    LOG.info('kaldi {} has no speechData'.format(sid))
+                    del self.streamer[sid]['buff']
+
+            clf = self.streamer[sid].get('clf')
+            if clf:
                 try:
                     wav = byte2wav(self.streamer[sid]['buff'], 44100)
-                    with open('test.wav', 'wb') as f:
-                        f.write(wav.getvalue())
-
                     del self.streamer[sid]['buff']
+                    if debug:
+                        with open('test.wav', 'wb') as f:
+                            f.write(wav.getvalue())
+
                     ivector = ivector_pipeline(wav , sid)
-                    clf = self.streamer[sid]['clf']
-                    #result = requests.get('http://140.125.45.147:8080/get?speech={}'.format(google)).json()
                     proba = clf.predict_proba(ivector.reshape(1, -1))
+                    proba = float('{0:.3f}'.format(proba[0][1]))
+
                     LOG.debug(proba)
-                    proba = proba[0][1]
+                    if proba >= 0.5 and google:
+                        result = requests.get('https://vawsr.mino.tw/nlp/get?speech={}'.format(google)).json()
 
                 except Exception as err:
                     LOG.debug(err)
 
             data = {
-                    'google': '', #google,
+                    'google': google,
                     'kaldi': kaldi,
                     'proba': proba,
                     'result': result
@@ -127,14 +136,20 @@ class SpeechWebsocket(socketio.AsyncNamespace):
     async def on_binary_data(self, sid, data):
         if not self.streamer[sid].get('g_stream'):
             await self.on_start_stream(sid, data)
-            g_stream = self.streamer[sid]['g_stream']
-            k_stream = self.streamer[sid]['k_stream']
-            #g_responses = self.google.start_recognition_stream(g_stream.generator())
-            k_responses = self.kaldi.create_streamer(sid, k_stream.generator())
-            self.streamer[sid]['g_responses'] = '123' #g_responses
-            self.streamer[sid]['k_responses'] = k_responses
-            #thread_run_until_complete(self.handle_google_response(sid, g_responses))
-            thread_run_until_complete(self.handle_kaldi_response(sid, k_responses.generator()))
+
+            if not google_disable:
+                g_stream = self.streamer[sid]['g_stream']
+                g_responses = self.google.start_recognition_stream(g_stream.generator())
+                self.streamer[sid]['g_responses'] = g_responses
+                thread_run_until_complete(self.handle_google_response(sid, g_responses))
+
+            if not kaldi_disable:
+                k_stream = self.streamer[sid]['k_stream']
+                k_responses = self.kaldi.create_streamer(sid, k_stream.generator())
+                self.streamer[sid]['k_responses'] = k_responses
+                thread_run_until_complete(self.handle_kaldi_response(sid, k_responses.generator()))
+            
+
             LOG.info('{} start recognition'.format(sid))
 
         self.streamer[sid]['g_stream'].write(data)

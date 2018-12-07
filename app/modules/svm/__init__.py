@@ -45,7 +45,7 @@ def build_svm_clf(ivectors, user):
 
         pipe_svm.fit(X, y)
 
-        LOG.info('{} clf score: {}'.format(user.name, pipe_svm.score(X, y)))
+        LOG.info('{} clf test score: {}'.format(user.name, pipe_svm.score(X, y)))
         user.clf = Binary(pickle.dumps(pipe_svm))
         user.ivectors = Binary(pickle.dumps(np.array(ivectors), protocol=2))
         user.hasivector = True
